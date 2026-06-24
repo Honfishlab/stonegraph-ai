@@ -1,16 +1,14 @@
 /**
  * Supabase admin client — uses service role key, bypasses RLS.
- * Use only in trusted server contexts (API routes, background jobs).
- * NEVER expose to client code.
+ * Untyped for now — will be replaced with generated Database types
+ * after the schema sync is complete.
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-let _admin: ReturnType<typeof createClient> | null = null;
+type UntypedClient = SupabaseClient<any, any, any>;
 
-export function createAdminClient() {
-  if (_admin) return _admin;
-
+export function createAdminClient(): UntypedClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -20,12 +18,10 @@ export function createAdminClient() {
     );
   }
 
-  _admin = createClient(url, key, {
+  return createClient(url, key, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
-  });
-
-  return _admin;
+  }) as unknown as UntypedClient;
 }
