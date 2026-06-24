@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from "@/infrastructure/database/server";
 import { redirect } from "next/navigation";
 import { SupabaseFamilyRepository } from "@/infrastructure/repositories/supabase-family.repository";
 import { TIERS, type Tier } from "@/domain/entities";
-import UploadForm from "@/components/vault/UploadForm";
+import TusUploader from "@/components/vault/TusUploader";
 
 export default async function UploadPage() {
   const supabase = await createServerSupabaseClient();
@@ -24,24 +24,34 @@ export default async function UploadPage() {
   const tier = TIERS[family.subscription_tier as Tier];
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-stone-900">Upload Memory</h1>
+        <h1 className="text-3xl font-bold text-stone-900">Upload Memories</h1>
         <p className="text-stone-600 mt-1">
-          Preserve your memory permanently on the Arweave blockchain
+          Upload files up to your storage limit with resumable uploads
         </p>
       </div>
 
       {/* Plan info */}
       <div className="bg-stone-100 rounded-lg border border-stone-200 p-4">
-        <p className="text-sm text-stone-700">
-          <span className="font-medium">{tier.name} Plan</span> ·{" "}
-          {tier.description}
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-stone-700">
+              {tier.name} Plan
+            </p>
+            <p className="text-xs text-stone-600 mt-1">{tier.description}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold text-stone-900">
+              {(tier.storageLimitBytes / 1024 / 1024 / 1024).toFixed(0)} GB
+            </p>
+            <p className="text-xs text-stone-600">Storage limit</p>
+          </div>
+        </div>
       </div>
 
-      {/* Upload form */}
-      <UploadForm familyId={family.id} />
+      {/* TUS Uploader */}
+      <TusUploader familyId={family.id} />
     </div>
   );
 }
