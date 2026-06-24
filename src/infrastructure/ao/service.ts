@@ -1,11 +1,9 @@
 /**
  * Arweave Objects (AO) service — decentralized metadata registry
- * Syncs memory metadata to AO compute process for permanent discovery
+ * Uses dynamic imports to avoid browser-only globals loading at build time.
  *
  * Server-only. Signed with server wallet (ARWEAVE_WALLET_JWK).
  */
-
-import { connect, createSigner } from "@permaweb/aoconnect";
 
 const AO_PROCESS_ID =
   process.env.NEXT_PUBLIC_AO_PROCESS_ID ??
@@ -30,20 +28,17 @@ export interface AOMemoryInput {
   family_id: string;
 }
 
-export interface FamilyCollection {
-  wallet: string;
-  memories: AOMemoryInput[];
-  updated_at: string;
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _ao: any = null;
 
 /**
- * Load wallet + create AO connection
+ * Lazy-load AO connection (avoids `self` global at build time)
  */
-function getAOConnection() {
+async function getAO() {
+  if (_ao) return _ao;
+
   const walletJson = process.env.ARWEAVE_WALLET_JWK ?? process.env.NEXT_PRIVATE_ARWEAVE_KEY;
-  if (!walletJson) {
-    return null;
-  }
+  if (!walletJson) return null;
 
   let jwk: Record<string, unknown>;
   try {
@@ -53,27 +48,40 @@ function getAOConnection() {
     return null;
   }
 
-  return connect({
+  // Dynamic import — only evaluates the module on first call
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { connect, createSigner } = await import("@permaweb/aoconnect" as any);
+
+  // Polyfill browser globals for aoconnect
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const g = globalThis as any;
+  if (!g.self) g.self = g;
+  if (!g.location) {
+    g.location = { protocol: "https:", href: HB_URL };
+  }
+
+  _ao = connect({
     MODE: "mainnet",
     URL: HB_URL,
     SCHEDULER,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     signer: createSigner(jwk) as any,
-  } as any);
+  });
+
+  return _ao;
 }
 
 /**
  * Send AddMemory to AO process — fire and forget (non-fatal).
- * Returns message ID on success, null on failure.
  */
 export async function addMemoryToAO(memory: AOMemoryInput): Promise<string | null> {
-  const ao = getAOConnection();
-  if (!ao || !("message" in ao)) {
-    console.warn("[ao] Wallet not configured — skipping AO sync");
-    return null;
-  }
-
   try {
+    const ao = await getAO();
+    if (!ao || !ao.message) {
+      console.warn("[ao] Wallet not configured — skipping AO sync");
+      return null;
+    }
+
     const msgId = await ao.message({
       process: AO_PROCESS_ID,
       tags: [{ name: "Action", value: "AddMemory" }],
@@ -90,10 +98,10 @@ export async function addMemoryToAO(memory: AOMemoryInput): Promise<string | nul
  * Remove memory from AO process.
  */
 export async function removeMemoryFromAO(memoryId: string): Promise<string | null> {
-  const ao = getAOConnection();
-  if (!ao || !("message" in ao)) return null;
-
   try {
+    const ao = await getAO();
+    if (!ao || !ao.message) return null;
+
     const msgId = await ao.message({
       process: AO_PROCESS_ID,
       tags: [{ name: "Action", value: "RemoveMemory" }],
@@ -109,17 +117,17 @@ export async function removeMemoryFromAO(memoryId: string): Promise<string | nul
 /**
  * Query family collection from AO (dryrun — no transaction).
  */
-export async function getFamilyCollection(
+export async function getFamilyCollectionFromAO(
   familyId: string
-): Promise<FamilyCollection | null> {
-  const ao = getAOConnection();
-  if (!ao || !("dryrun" in ao)) return null;
-
+): Promise<{ wallet: string; memories: AOMemoryInput[]; updated_at: string } | null> {
   try {
+    const ao = await getAO();
+    if (!ao || !ao.dryrun) return null;
+
     const result = await ao.dryrun({
       process: AO_PROCESS_ID,
       tags: [
-        { name: "Action", value: "Get-Family-Collection" },
+        { name: "Action", value: "GetCollection" },
         { name: "Family-Id", value: familyId },
       ],
     });
@@ -130,7 +138,7 @@ export async function getFamilyCollection(
 
     return typeof data === "string" ? JSON.parse(data) : data;
   } catch (err) {
-    console.error("[ao] Get-Family-Collection failed:", err);
+    console.error("[ao] GetCollection failed:", err);
     return null;
   }
 }
