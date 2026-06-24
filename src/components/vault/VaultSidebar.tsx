@@ -7,9 +7,10 @@ const NAV_ITEMS = [
   { href: "/vault", label: "Vault", icon: "🔒" },
   { href: "/vault/memories", label: "Memories", icon: "📷" },
   { href: "/vault/upload", label: "Upload", icon: "⬆️" },
+  { href: "/vault/albums", label: "Albums", icon: "📸" },
+  { href: "/vault/slates", label: "My Slates", icon: "📋" },
   { href: "/vault/memorials", label: "Memorials", icon: "🕯️" },
   { href: "/vault/family", label: "Family", icon: "👨‍👩‍👧‍👦" },
-  { href: "/vault/agent", label: "Smart Agent", icon: "🤖" },
   { href: "/vault/settings", label: "Settings", icon: "⚙️" },
   { href: "/vault/billing", label: "Billing", icon: "💳" },
 ];
@@ -63,12 +64,6 @@ export default function VaultSidebar() {
           className="block text-xs text-stone-500 hover:text-stone-300 text-center"
         >
           Wallet backup
-        </Link>
-        <Link
-          href="/vault/myslate"
-          className="block text-xs bg-stone-700 text-stone-200 py-2 rounded hover:bg-stone-600 text-center transition-colors"
-        >
-          Download Slate
         </Link>
         <form action="/api/auth/signout" method="POST">
           <button

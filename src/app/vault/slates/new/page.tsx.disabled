@@ -1,0 +1,157 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+export default function CreateSlatePage() {
+  const router = useRouter();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState('personal');
+  const [year, setYear] = useState<number | null>(null);
+  const [isPublic, setIsPublic] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/slates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description: description || null,
+          type,
+          year,
+          coverMemory: null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to create slate');
+      }
+
+      const data = await res.json();
+      router.push(`/vault/slates/${data.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create slate');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-2xl">
+      <h1 className="text-3xl font-bold text-stone-900">Create New Slate</h1>
+      <p className="text-stone-600 mt-2 mb-8">
+        A slate is a curated collection of your best memories.
+      </p>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label htmlFor="title" className="block text-sm font-medium text-stone-700 mb-2">
+            Title *
+          </label>
+          <input
+            type="text"
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-500 focus:border-transparent"
+            placeholder="My Best Moments"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="description" className="block text-sm font-medium text-stone-700 mb-2">
+            Description
+          </label>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
+            className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-500 focus:border-transparent"
+            placeholder="What makes this collection special?"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="type" className="block text-sm font-medium text-stone-700 mb-2">
+            Type
+          </label>
+          <select
+            id="type"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-500 focus:border-transparent"
+          >
+            <option value="personal">Personal</option>
+            <option value="family">Family</option>
+            <option value="travel">Travel</option>
+            <option value="milestones">Milestones</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="year" className="block text-sm font-medium text-stone-700 mb-2">
+            Year (optional)
+          </label>
+          <input
+            type="number"
+            id="year"
+            value={year || ''}
+            onChange={(e) => setYear(e.target.value ? parseInt(e.target.value) : null)}
+            min="1900"
+            max="2100"
+            className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-500 focus:border-transparent"
+            placeholder="2024"
+          />
+        </div>
+
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="isPublic"
+            checked={isPublic}
+            onChange={(e) => setIsPublic(e.target.checked)}
+            className="w-4 h-4 text-stone-600 bg-stone-100 border-stone-300 rounded focus:ring-stone-500"
+          />
+          <label htmlFor="isPublic" className="ml-2 text-sm text-stone-700">
+            Make this slate public (visible to family members)
+          </label>
+        </div>
+
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800">{error}</p>
+          </div>
+        )}
+
+        <div className="flex gap-4">
+          <button
+            type="submit"
+            disabled={loading || !title.trim()}
+            className="px-6 py-2 bg-stone-900 text-white rounded-lg hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? 'Creating...' : 'Create Slate'}
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push('/vault/slates')}
+            className="px-6 py-2 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
