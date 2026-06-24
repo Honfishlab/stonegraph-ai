@@ -5,3 +5,5 @@ export * from "./memorial";
 export * from "./profile";
 export * from "./image-cluster";
 export * from "./user-purchase";
+export * from "./slate";
+export * from "./album";

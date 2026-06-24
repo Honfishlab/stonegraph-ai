@@ -2,6 +2,8 @@ import { createServerSupabaseClient } from "@/infrastructure/database/server";
 import { redirect, notFound } from "next/navigation";
 import { SupabaseMemoryRepository } from "@/infrastructure/repositories/supabase-memory.repository";
 import { formatBytes } from "@/domain/entities";
+import { PermanentViewerButton } from "@/components/memories/PermanentViewerButton";
+import { ArweaveBadge } from "@/components/memories/ArweaveBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +62,9 @@ export default async function MemoryDetailPage({
               Uploading...
             </span>
           )}
+          {isPermanent && memory.arweave_tx_id && (
+            <ArweaveBadge arweaveTxId={memory.arweave_tx_id} />
+          )}
         </div>
       </div>
 
@@ -83,6 +88,19 @@ export default async function MemoryDetailPage({
               : "📷"}
           </div>
           <p className="text-stone-600">{memory.file_name}</p>
+        </div>
+      )}
+
+      {/* Permanent Viewer Section */}
+      {isPermanent && memory.arweave_tx_id && (
+        <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-6">
+          <h2 className="text-lg font-semibold text-stone-900 mb-4">
+            Permanent Viewer
+          </h2>
+          <PermanentViewerButton
+            memoryId={memory.id}
+            arweaveTxId={memory.arweave_tx_id}
+          />
         </div>
       )}
 
