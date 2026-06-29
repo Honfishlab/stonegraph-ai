@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@permaweb/aoconnect": "^0.0.70",
@@ -30,13 +32,16 @@
   "devDependencies": {
     "@eslint/compat": "^2.1.0",
     "@eslint/eslintrc": "^3.2.0",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.16.0",
     "eslint-config-next": "^15.1.0",
+    "jsdom": "^29.1.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.9"
   }
 }
