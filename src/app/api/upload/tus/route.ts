@@ -1,94 +1,91 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/infrastructure/database/server";
 import { createAdminClient } from "@/infrastructure/database/admin";
-import { TusService } from "@/infrastructure/tus/service";
+import { createServerSupabaseClient } from "@/infrastructure/database/server";
 
 /**
  * POST /api/upload/tus
- * Create new TUS upload
+ * Creates a new upload session and returns the upload ID
  */
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
+  const supabase = await createServerSupabaseClient();
+  
+  // Check authentication
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  
+  if (authError || !user) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
   try {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    // Parse headers from tus-js-client
+    const uploadLength = req.headers.get("upload-length");
+    const uploadMetadata = req.headers.get("upload-metadata");
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const fileSize = parseInt(uploadLength || "0");
 
-    // Handle TUS POST (creation of new upload)
-    const tusResumable = request.headers.get("tus-resumable");
-    if (tusResumable !== "1.0.0") {
-      return NextResponse.json(
-        { error: "Invalid TUS version" },
-        { status: 412 }
-      );
-    }
+    // Parse metadata (base64 encoded)
+    let filename = "file";
+    let filetype = "application/octet-stream";
+    let familyId = user.id;
+    let type = "photo";
+    let title = "";
+    let description = "";
 
-    const uploadLength = request.headers.get("upload-length");
-    const uploadMetadata = request.headers.get("upload-metadata");
-
-    if (!uploadLength) {
-      return NextResponse.json(
-        { error: "Missing upload-length header" },
-        { status: 400 }
-      );
-    }
-
-    const fileSize = parseInt(uploadLength, 10);
-    const metadata = TusService.parseUploadMetadata(uploadMetadata);
-
-    // Create upload record in database
-    const admin = createAdminClient();
-    const uploadId = crypto.randomUUID();
-
-    const { error: dbError } = await admin.from("tus_uploads").insert({
-      id: uploadId,
-      user_id: user.id,
-      file_name: metadata.filename || "unknown",
-      file_size: fileSize,
-      bytes_uploaded: 0,
-      file_type: metadata.filetype || "application/octet-stream",
-      title: metadata.title || metadata.filename || "Untitled",
-      description: metadata.description || null,
-      memory_type: metadata.type || "photo",
-      family_id: metadata.family_id,
-      metadata: metadata,
-      status: "uploading",
-    });
-
-    if (dbError) {
-      console.error("[tus] Create upload error:", dbError);
-      return NextResponse.json({ error: "Failed to create upload" }, { status: 500 });
-    }
-
-    // Create upload folder in storage
-    const storagePath = `tus-uploads/${user.id}/${uploadId}`;
-    const { error: storageError } = await admin.storage
-      .from("memories")
-      .upload(`${storagePath}/.tus-meta`, JSON.stringify(metadata), {
-        contentType: "application/json",
-        upsert: false,
+    if (uploadMetadata) {
+      uploadMetadata.split(",").forEach((item: string) => {
+        const [key, value] = item.trim().split(" ");
+        if (key && value) {
+          const decoded = atob(value);
+          if (key === "filename") filename = decoded;
+          if (key === "filetype") filetype = decoded;
+          if (key === "familyId") familyId = decoded;
+          if (key === "type") type = decoded;
+          if (key === "title") title = decoded;
+          if (key === "description") description = decoded;
+        }
       });
-
-    if (storageError) {
-      console.error("[tus] Create storage folder error:", storageError);
-      return NextResponse.json({ error: "Failed to create upload" }, { status: 500 });
     }
 
-    // Return 201 Created with Location header
-    const locationUrl = `/api/upload/tus/${uploadId}`;
+    if (!title) {
+      title = filename.replace(/\.[^/.]+$/, ""); // Remove extension
+    }
+
+    // Create upload record
+    const supabaseAdmin = createAdminClient();
+    
+    const { data: upload, error } = await supabaseAdmin
+      .from("tus_uploads")
+      .insert({
+        user_id: user.id,
+        status: "uploading",
+      })
+      .select()
+      .single();
+
+    if (error || !upload) {
+      console.error("[TUS] Failed to create upload:", error);
+      return NextResponse.json(
+        { error: "Failed to create upload" },
+        { status: 500 }
+      );
+    }
+
+    // Return upload ID in Location header
+    const uploadUrl = `${process.env.NEXT_PUBLIC_BASE_URL || req.nextUrl.origin}/api/upload/tus/${upload.id}`;
+
     return new NextResponse(null, {
       status: 201,
       headers: {
-        Location: locationUrl,
+        Location: uploadUrl,
         "Tus-Resumable": "1.0.0",
-        "Tus-Version": "1.0.0",
-        "Tus-Extension": "creation,termination",
+        "Upload-Expires": new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString(),
       },
     });
-  } catch (error) {
-    console.error("[tus] POST error:", error);
-    return NextResponse.json({ error: "Upload creation failed" }, { status: 500 });
+  } catch (err) {
+    console.error("[TUS] Unexpected error:", err);
+    return NextResponse.json({ error: "Failed to create upload" }, { status: 500 });
   }
 }
